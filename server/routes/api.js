@@ -3,7 +3,7 @@ import { Router } from 'express';
 import { middlewares } from 'auth0-extension-express-tools';
 
 import config from '../lib/config';
-import { provisionAppUser } from '../lib/box';
+import { provisionAppUser, createUserFolder } from '../lib/box';
 import requireApiKey from '../lib/middlewares/requireApiKey';
 
 export default () => {
@@ -35,5 +35,12 @@ export default () => {
       .then(appUser => res.json(appUser))
       .catch(next);
   });
+
+  api.post('/create_folder', requireApiKey(config('EXTENSION_SECRET')), (req, res, next) => {
+    createUserFolder(req.body.user)
+      .then(userFolder => res.json(userFolder))
+      .catch(next);
+  });
+
   return api;
 };

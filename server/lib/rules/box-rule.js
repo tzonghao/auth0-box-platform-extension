@@ -9,11 +9,13 @@ function(user, context, callback) {
 
   user.app_metadata = user.app_metadata || {};
 
-  if (user.app_metadata.box_appuser_id) {
+  if (user.app_metadata.box_appuser_id && user.app_metadata.box_appuser_folder) {
     context.accessToken['http://box-platform/appuser/id'] = user.app_metadata.box_appuser_id;
+    context.accessToken['http://box-platform/appuser/folder'] = user.app_metadata.box_appuser_folder;
     return callback(null, user, context);
   }
 
+  console.log('Creating a new Box App User...');
   var options = {
     headers: {
       'x-api-key': '<%= apiKey %>'
@@ -23,8 +25,6 @@ function(user, context, callback) {
       user: user
     }
   };
-
-  console.log('Creating a new Box App User...');
   request.post(options, function(err, res, body) {
     if (err) {
       console.log('Error creating Box App User:', err);
@@ -41,8 +41,44 @@ function(user, context, callback) {
     }
 
     console.log('Box App User created:', res.body.id);
-    return auth0.users.updateAppMetadata(user.user_id, { box_appuser_id: res.body.id }, function(err, updatedUser) {
-      context.accessToken['http://box-platform/appuser/id'] = res.body.id;
+    var user_id = res.body.id;
+    var folder_id;
+
+    console.log('Creating a new Box Folder...');
+    var folder_options = {
+      headers: {
+        'x-api-key': '<%= apiKey %>'
+      },
+      url: '<%= extensionUrl %>/api/create_folder',
+      json: {
+        user: user
+      }
+    };
+    request.post(folder_options, function(err, res, body) {
+      if (err) {
+        console.log('Error creating Box folder:', err);
+        return callback(err);
+      }
+
+      if (!body) {
+        console.error('Box Error:', JSON.stringify({ statusCode: res.statusCode }, null, 2));
+        return callback(new UnauthorizedError('Box Error: ' + res.statusCode));
+      }
+
+      if (res.statusCode !== 200) {
+        return callback(new UnauthorizedError('Box Error: ' + (body.message || body.error_description || body.error || body)));
+      }
+      
+      console.log('Box folder created:', res.body.id);
+      folder_id = res.body.id;
+    });
+
+    return auth0.users.updateAppMetadata(user.user_id, {
+        box_appuser_id: user_id,
+        box_appuser_folder: folder_id
+      }, function(err, updatedUser) {
+      context.accessToken['http://box-platform/appuser/id'] = user_id;
+      context.accessToken['http://box-platform/appuser/folder'] = folder_id;
       callback(null, updatedUser, context);
     });
   });

@@ -18,6 +18,9 @@ const BoxConstants = {
   },
   BASE_URL: 'https://api.box.com/oauth2/token',
   APP_USERS_URL: 'https://api.box.com/2.0/users',
+  FOLDERS_URL: 'https://api.box.com/2.0/folders',
+  COLLAB_URL: 'https://api.box.com/2.0/collaborations',
+  PORTAL_UPLOADS: '57826854348',
   ENTERPRISE: 'enterprise',
   USER: 'user'
 };
@@ -128,6 +131,81 @@ export const getEnterpriseToken = () => {
   });
 };
 
+export const createUserFolder = (user) =>
+  getEnterpriseToken()
+    .then((enterpriseToken) => {
+      const options = {
+        headers: {
+          Authorization: `Bearer ${enterpriseToken}`
+        },
+        url: BoxConstants.FOLDERS_URL,
+        json: {
+          name: user.email,
+          parent: {
+            id: BoxConstants.PORTAL_UPLOADS
+          }
+        }
+      };
+
+      logger.info('Creating User Folder...');
+      return new Promise((resolve, reject) => {
+        request.post(options, (err, res, body) => {
+          if (err) {
+            logger.error('Box Error:', JSON.stringify(err, null, 2));
+            return reject(err);
+          }
+
+          if (res.statusCode >= 300 || !body) {
+            logger.error('Box Error:', JSON.stringify(res, null, 2));
+
+            const boxError = new Error(`${(body && body.error_description) || res.text || res.statusCode}`);
+            boxError.name = 'box_error';
+            boxError.status = res.statusCode;
+            return reject(boxError);
+          }
+
+          var folder = res.body;
+
+          logger.info("Share folder with app user...");
+          var collab_options = {
+            headers: {
+              Authorization: `Bearer ${enterpriseToken}`
+            },
+            url: BoxConstants.COLLAB_URL,
+            json: {
+              item: {
+                type: 'folder',
+                id: folder.id
+              },
+              accessible_by: {
+                type: 'user',
+                id: user.id
+              },
+              role: 'editor'
+            }
+          }
+          request.post(collab_options, (err, res, body) => {
+            if (err) {
+              logger.error('Box Error:', JSON.stringify(err, null, 2));
+              return reject(err);
+            }
+
+            if (res.statusCode >= 300 || !body) {
+              logger.error('Box Error:', JSON.stringify(res, null, 2));
+
+              const boxError = new Error(`${(body && body.error_description) || res.text || res.statusCode}`);
+              boxError.name = 'box_error';
+              boxError.status = res.statusCode;
+              return reject(boxError);
+            }
+
+            return resolve(folder);
+          });
+
+        });
+      });
+    });
+
 export const provisionAppUser = user =>
   getEnterpriseToken()
     .then((enterpriseToken) => {
@@ -141,7 +219,6 @@ export const provisionAppUser = user =>
           is_platform_access_only: true
         }
       };
-
 
       logger.info('Provisioning Box App User...');
       return new Promise((resolve, reject) => {
