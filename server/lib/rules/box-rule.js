@@ -64,7 +64,7 @@ function(user, context, callback) {
       if (res.statusCode !== 200) {
         return callback(new UnauthorizedError('Box Error: ' + (body.message || body.error_description || body.error || body)));
       }
-      console.log('Box folder created:', res.body.id);
+      console.log('Box folder:', res.body.id);
       folder_id = res.body.id;
 
       return auth0.users.updateAppMetadata(user.user_id, {

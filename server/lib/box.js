@@ -46,7 +46,10 @@ const issueAppUserToken = (publicKeyId, signingCert, boxClientId, boxId) => jwt.
   }
 );
 
-const getBoxId = user => Promise.resolve(user && user['http://box-platform/appuser/id']);
+const getBoxUser = user => Promise.resolve(user && {
+  id: user['http://box-platform/appuser/id'],
+  folder: user['http://box-platform/appuser/folder']
+});
 
 const getSigningCert = (signingCert, password) => {
   if (password && password.length) {
@@ -282,10 +285,15 @@ export const provisionAppUser = user =>
     });
 
 export const getAppUserToken = user =>
-  getBoxId(user)
-    .then((boxId) => {
+  getBoxUser(user)
+    .then((boxUser) => {
+      var boxId = boxUser['id'];
+      var boxFolder = boxUser['folder'];
       if (!boxId || !boxId.length) {
         return Promise.reject(new UnauthorizedError('The current user does not have a boxId.'));
+      }
+      if (!boxFolder || !boxFolder.length) {
+        return Promise.reject(new UnauthorizedError('The current user does not have a boxFolder.'));
       }
 
       const signingCert = getSigningCert(settings().boxAppSettings.appAuth.privateKey, settings().boxAppSettings.appAuth.passphrase);
@@ -314,6 +322,7 @@ export const getAppUserToken = user =>
           }
 
           const boxToken = body;
+          boxToken['folder_id'] = boxFolder;
           return resolve(boxToken);
         });
       });
