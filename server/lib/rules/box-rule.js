@@ -16,7 +16,7 @@ function(user, context, callback) {
   }
 
   console.log('Creating a new Box App User...');
-  var options = {
+  var provision_appuser = {
     headers: {
       'x-api-key': '<%= apiKey %>'
     },
@@ -25,51 +25,45 @@ function(user, context, callback) {
       user: user
     }
   };
-  request.post(options, function(err, res, body) {
+  request.post(provision_appuser, function(err, res, body) {
     if (err) {
       console.log('Error creating Box App User:', err);
       return callback(err);
     }
-
     if (!body) {
       console.error('Box Error:', JSON.stringify({ statusCode: res.statusCode }, null, 2));
       return callback(new UnauthorizedError('Box Error: ' + res.statusCode));
     }
-
     if (res.statusCode !== 200) {
       return callback(new UnauthorizedError('Box Error: ' + (body.message || body.error_description || body.error || body)));
     }
-
     console.log('Box App User created:', res.body.id);
     var user_id = res.body.id;
+    
     var folder_id;
-
-    console.log('Creating a new Box Folder...');
-    var folder_options = {
+    var get_or_create = {
       headers: {
         'x-api-key': '<%= apiKey %>'
       },
-      url: '<%= extensionUrl %>/api/create_folder',
+      url: '<%= extensionUrl %>/api/user_folder',
       json: {
         email: user.email,
         id: user_id
       }
     };
-    request.post(folder_options, function(err, res, body) {
+    console.log('Getting or Creating a Box Folder...');
+    request.post(get_or_create, function(err, res, body) {
       if (err) {
         console.log('Error creating Box folder:', err);
         return callback(err);
       }
-
       if (!body) {
         console.error('Box Error:', JSON.stringify({ statusCode: res.statusCode }, null, 2));
         return callback(new UnauthorizedError('Box Error: ' + res.statusCode));
       }
-
       if (res.statusCode !== 200) {
         return callback(new UnauthorizedError('Box Error: ' + (body.message || body.error_description || body.error || body)));
       }
-      
       console.log('Box folder created:', res.body.id);
       folder_id = res.body.id;
 

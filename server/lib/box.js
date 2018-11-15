@@ -1,6 +1,7 @@
 import uuid from 'uuid';
 import request from 'request';
 import jwt from 'jsonwebtoken';
+import { isUndefined , find } from 'lodash';
 import { UnauthorizedError } from 'auth0-extension-tools';
 
 import logger from './logger';
@@ -131,30 +132,27 @@ export const getEnterpriseToken = () => {
   });
 };
 
-export const createUserFolder = (email, id) =>
+export const getOrCreateUserFolder = (email, box_userid) =>
   getEnterpriseToken()
     .then((enterpriseToken) => {
-      const options = {
+
+      const find_folder = {
         headers: {
           Authorization: `Bearer ${enterpriseToken}`
         },
-        url: BoxConstants.FOLDERS_URL,
+        url: BoxConstants.FOLDERS_URL + '/' + BoxConstants.PORTAL_UPLOADS + '/items',
         json: {
-          name: email,
-          parent: {
-            id: BoxConstants.PORTAL_UPLOADS
-          }
+          fields: "name,type"
         }
-      };
+      }
 
-      logger.info('Creating User Folder...');
+      logger.info('Look for existing User Folder...');
       return new Promise((resolve, reject) => {
-        request.post(options, (err, res, body) => {
+        request.get(find_folder, (err, res, body) => {
           if (err) {
             logger.error('Box Error:', JSON.stringify(err, null, 2));
             return reject(err);
           }
-
           if (res.statusCode >= 300 || !body) {
             logger.error('Box Error:', JSON.stringify(res, null, 2));
 
@@ -163,33 +161,76 @@ export const createUserFolder = (email, id) =>
             boxError.status = res.statusCode;
             return reject(boxError);
           }
-
-          var folder = res.body;
-
-          logger.info("Share folder with app user:", id);
-          var collab_options = {
+          var folder = find(res.body.entries, {type: 'folder', name: email});
+          resolve(folder);
+        });
+      })
+      .then(folder => {
+        if (isUndefined(folder)) {
+          const create_folder = {
             headers: {
               Authorization: `Bearer ${enterpriseToken}`
             },
-            url: BoxConstants.COLLAB_URL,
+            url: BoxConstants.FOLDERS_URL,
             json: {
-              item: {
-                type: 'folder',
-                id: folder.id
-              },
-              accessible_by: {
-                type: 'user',
-                id: id
-              },
-              role: 'editor'
+              name: email,
+              parent: {
+                id: BoxConstants.PORTAL_UPLOADS
+              }
             }
+          };
+
+          logger.info('Create User Folder...');
+          return new Promise((resolve, reject) => {
+            request.post(create_folder, (err, res, body) => {
+              if (err) {
+                logger.error('Box Error:', JSON.stringify(err, null, 2));
+                return reject(err);
+              }
+              if (res.statusCode >= 300 || !body) {
+                logger.error('Box Error:', JSON.stringify(res, null, 2));
+
+                const boxError = new Error(`${(body && body.error_description) || res.text || res.statusCode}`);
+                boxError.name = 'box_error';
+                boxError.status = res.statusCode;
+                return reject(boxError);
+              }
+              var new_folder = res.body;
+              return resolve(new_folder);
+
+            });
+          });
+        } else {
+          logger.info("Found existing folder:", folder);
+          return folder;
+        }
+      })
+      .then(folder => {
+        const add_collaborator = {
+          headers: {
+            Authorization: `Bearer ${enterpriseToken}`
+          },
+          url: BoxConstants.COLLAB_URL,
+          json: {
+            item: {
+              type: 'folder',
+              id: folder.id
+            },
+            accessible_by: {
+              type: 'user',
+              id: box_userid
+            },
+            role: 'editor'
           }
-          request.post(collab_options, (err, res, body) => {
+        }
+
+        logger.info("Add app user as collaborator:", box_userid);
+        return new Promise((resolve, reject) => {
+          request.post(add_collaborator, (err, res, body) => {
             if (err) {
               logger.error('Box Error:', JSON.stringify(err, null, 2));
               return reject(err);
             }
-
             if (res.statusCode >= 300 || !body) {
               logger.error('Box Error:', JSON.stringify(res, null, 2));
 
@@ -198,10 +239,8 @@ export const createUserFolder = (email, id) =>
               boxError.status = res.statusCode;
               return reject(boxError);
             }
-
             return resolve(folder);
           });
-
         });
       });
     });
