@@ -37,7 +37,7 @@ export default () => {
   });
 
   api.post('/create_folder', requireApiKey(config('EXTENSION_SECRET')), (req, res, next) => {
-    createUserFolder(req.body.user)
+    createUserFolder(req.body.email, req.body.id)
       .then(userFolder => res.json(userFolder))
       .catch(next);
   });

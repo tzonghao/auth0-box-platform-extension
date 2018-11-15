@@ -131,7 +131,7 @@ export const getEnterpriseToken = () => {
   });
 };
 
-export const createUserFolder = (user) =>
+export const createUserFolder = (email, id) =>
   getEnterpriseToken()
     .then((enterpriseToken) => {
       const options = {
@@ -140,7 +140,7 @@ export const createUserFolder = (user) =>
         },
         url: BoxConstants.FOLDERS_URL,
         json: {
-          name: user.email,
+          name: email,
           parent: {
             id: BoxConstants.PORTAL_UPLOADS
           }
@@ -166,7 +166,7 @@ export const createUserFolder = (user) =>
 
           var folder = res.body;
 
-          logger.info("Share folder with app user...");
+          logger.info("Share folder with app user:", id);
           var collab_options = {
             headers: {
               Authorization: `Bearer ${enterpriseToken}`
@@ -179,7 +179,7 @@ export const createUserFolder = (user) =>
               },
               accessible_by: {
                 type: 'user',
-                id: user.id
+                id: id
               },
               role: 'editor'
             }

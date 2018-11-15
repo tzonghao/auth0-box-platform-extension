@@ -51,7 +51,8 @@ function(user, context, callback) {
       },
       url: '<%= extensionUrl %>/api/create_folder',
       json: {
-        user: user
+        email: user.email,
+        id: user_id
       }
     };
     request.post(folder_options, function(err, res, body) {
@@ -71,15 +72,18 @@ function(user, context, callback) {
       
       console.log('Box folder created:', res.body.id);
       folder_id = res.body.id;
-    });
 
-    return auth0.users.updateAppMetadata(user.user_id, {
-        box_appuser_id: user_id,
-        box_appuser_folder: folder_id
-      }, function(err, updatedUser) {
-      context.accessToken['http://box-platform/appuser/id'] = user_id;
-      context.accessToken['http://box-platform/appuser/folder'] = folder_id;
-      callback(null, updatedUser, context);
+      return auth0.users.updateAppMetadata(user.user_id, {
+          box_appuser_id: user_id,
+          box_appuser_folder: folder_id
+        }, function(err, updatedUser) {
+          console.log('User metadta updated:', user.user_id, user_id, folder_id);
+          context.accessToken['http://box-platform/appuser/id'] = user_id;
+          context.accessToken['http://box-platform/appuser/folder'] = folder_id;
+          callback(null, updatedUser, context);
+        }
+      );
+
     });
   });
 }`;
